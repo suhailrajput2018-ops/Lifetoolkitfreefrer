@@ -1,138 +1,80 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-interface RatesCache {
-  rates: Record<string, number>;
-  timestamp: number;
-}
-
-let cachedRates: RatesCache | null = null;
-const CACHE_DURATION = 5 * 60 * 1000;
-
 export async function GET() {
   try {
-    const now = Date.now();
+    const rates = await fetchLiveRates();
     
-    if (cachedRates && now - cachedRates.timestamp < CACHE_DURATION) {
-      console.log('Returning cached rates');
-      return Response.json({
-        success: true,
-        rates: cachedRates.rates,
-        lastUpdated: new Date(cachedRates.timestamp).toISOString(),
-        source: 'cached',
-        cacheAge: `${Math.round((now - cachedRates.timestamp) / 1000)}s`
-      });
-    }
-
-    console.log('Fetching fresh rates...');
-    const rates = await fetchExchangeRates();
-
-    if (Object.keys(rates).length > 0) {
-      cachedRates = { rates, timestamp: now };
-      console.log('Fresh rates fetched successfully');
-      
-      return Response.json({
+    return new Response(
+      JSON.stringify({
         success: true,
         rates: rates,
-        lastUpdated: new Date(now).toISOString(),
-        source: 'live',
-        cacheAge: '0s'
-      });
-    } else {
-      if (cachedRates) {
-        const now = Date.now();
-        return Response.json({
-          success: true,
-          rates: cachedRates.rates,
-          lastUpdated: new Date(cachedRates.timestamp).toISOString(),
-          warning: 'Using cached data',
-          source: 'cached_fallback'
-        });
+        lastUpdated: new Date().toISOString(),
+        source: 'live'
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
       }
-      
-      return Response.json({
+    );
+  } catch (error: any) {
+    console.error('Exchange API Error:', error);
+    
+    return new Response(
+      JSON.stringify({
         success: true,
         rates: getDefaultRates(),
         lastUpdated: new Date().toISOString(),
-        warning: 'Using default rates',
-        source: 'default'
-      });
-    }
-  } catch (error) {
-    console.error('Exchange rates error:', error);
-    
-    if (cachedRates) {
-      return Response.json({
-        success: true,
-        rates: cachedRates.rates,
-        lastUpdated: new Date(cachedRates.timestamp).toISOString(),
-        warning: 'Error - using cached data',
-        source: 'error_fallback'
-      });
-    }
-
-    return Response.json({
-      success: true,
-      rates: getDefaultRates(),
-      lastUpdated: new Date().toISOString(),
-      warning: 'Error - using default rates',
-      source: 'default'
-    });
+        source: 'default',
+        warning: 'Using default rates'
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store'
+        }
+      }
+    );
   }
 }
 
-async function fetchExchangeRates(): Promise<Record<string, number>> {
-  const apiSources = [
-    {
-      name: 'exchangerate-api',
-      url: 'https://api.exchangerate-api.com/v4/latest/USD',
-      parse: (data: any) => data.rates
-    },
-    {
-      name: 'open.er-api',
-      url: 'https://open.er-api.com/v6/latest/USD',
-      parse: (data: any) => data.rates
-    },
-    {
-      name: 'exchangerate-host',
-      url: 'https://api.exchangerate.host/latest?base=USD',
-      parse: (data: any) => data.rates
-    }
+async function fetchLiveRates(): Promise<Record<string, number>> {
+  const sources = [
+    'https://api.exchangerate-api.com/v4/latest/USD',
+    'https://open.er-api.com/v6/latest/USD',
+    'https://api.exchangerate.host/latest?base=USD'
   ];
 
-  for (const source of apiSources) {
+  for (const url of sources) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const response = await fetch(source.url, {
+      const res = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0'
-        },
-        signal: controller.signal,
         cache: 'no-store'
       });
 
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        const rates = source.parse(data);
+      if (res.ok) {
+        const data = await res.json();
+        const rates = data.rates || {};
         
-        if (rates && typeof rates === 'object' && Object.keys(rates).length > 10) {
-          console.log(`✓ Got rates from ${source.name}`);
-          return { USD: 1, ...rates };
+        if (Object.keys(rates).length > 10) {
+          return {
+            USD: 1,
+            ...rates
+          };
         }
       }
-    } catch (err) {
-      console.log(`✗ ${source.name} failed`);
+    } catch (e) {
       continue;
     }
   }
 
-  return {};
+  return getDefaultRates();
 }
 
 function getDefaultRates(): Record<string, number> {
@@ -140,7 +82,7 @@ function getDefaultRates(): Record<string, number> {
     USD: 1.0,
     EUR: 0.92,
     GBP: 0.79,
-    JPY: 149.50,
+    JPY: 149.5,
     CAD: 1.36,
     AUD: 1.52,
     CHF: 0.88,
@@ -150,12 +92,12 @@ function getDefaultRates(): Record<string, number> {
     SGD: 1.35,
     HKD: 7.81,
     NZD: 1.67,
-    SEK: 10.50,
+    SEK: 10.5,
     NOK: 10.47,
     DKK: 6.86,
     BRL: 4.97,
     ZAR: 18.65,
-    KRW: 1319.50,
+    KRW: 1319.5,
     PKR: 96.0,
   };
 }
