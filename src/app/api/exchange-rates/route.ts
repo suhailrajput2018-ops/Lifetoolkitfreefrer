@@ -1,40 +1,51 @@
+import { NextResponse } from "next/server";
+
 export async function GET() {
   try {
     const rates = await fetchRates();
-    return Response.json({
+
+    return NextResponse.json({
       success: true,
       rates,
       lastUpdated: new Date().toISOString(),
-      source: 'live'
+      source: "live",
     });
-  } catch {
-    return Response.json({
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json({
       success: true,
       rates: getDefaults(),
       lastUpdated: new Date().toISOString(),
-      source: 'default'
+      source: "default",
     });
   }
 }
 
 async function fetchRates() {
   const apis = [
-    'https://api.exchangerate-api.com/v4/latest/USD',
-    'https://open.er-api.com/v6/latest/USD'
+    "https://open.er-api.com/v6/latest/USD",
+    "https://api.exchangerate-api.com/v4/latest/USD",
   ];
 
   for (const api of apis) {
     try {
-      const res = await fetch(api);
-      if (res.ok) {
-        const data = await res.json();
-        const r = data.rates || {};
-        if (Object.keys(r).length > 10) {
-          return Object.assign({ USD: 1 }, r);
-        }
+      const res = await fetch(api, {
+        cache: "no-store",
+      });
+
+      if (!res.ok) continue;
+
+      const data = await res.json();
+
+      if (data.rates && Object.keys(data.rates).length > 10) {
+        return {
+          USD: 1,
+          ...data.rates,
+        };
       }
-    } catch {
-      null;
+    } catch (error) {
+      console.error(`Failed to fetch ${api}:`, error);
     }
   }
 
@@ -52,7 +63,7 @@ function getDefaults() {
     CHF: 0.88,
     CNY: 7.24,
     INR: 83.12,
-    PKR: 96,
+    PKR: 279.96,
     MXN: 17.05,
     SGD: 1.35,
     HKD: 7.81,
@@ -62,6 +73,6 @@ function getDefaults() {
     DKK: 6.86,
     BRL: 4.97,
     ZAR: 18.65,
-    KRW: 1319.5
+    KRW: 1319.5,
   };
 }
