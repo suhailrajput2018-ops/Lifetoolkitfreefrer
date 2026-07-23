@@ -1,72 +1,49 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export async function GET() {
   try {
-    const rates = await fetchLiveRates();
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        rates: rates,
-        lastUpdated: new Date().toISOString(),
-        source: 'live'
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate'
-        }
-      }
-    );
-  } catch (err) {
-    console.error('Error:', err);
-    
-    return new Response(
-      JSON.stringify({
-        success: true,
-        rates: getDefaultRates(),
-        lastUpdated: new Date().toISOString(),
-        source: 'default'
-      }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      }
-    );
+    const rates = await fetchRates();
+    return Response.json({
+      success: true,
+      rates,
+      lastUpdated: new Date().toISOString(),
+      source: 'live'
+    });
+  } catch {
+    return Response.json({
+      success: true,
+      rates: getDefaults(),
+      lastUpdated: new Date().toISOString(),
+      source: 'default'
+    });
   }
 }
 
-async function fetchLiveRates(): Promise<Record<string, number>> {
-  const urls = [
+async function fetchRates() {
+  const apis = [
     'https://api.exchangerate-api.com/v4/latest/USD',
-    'https://open.er-api.com/v6/latest/USD',
-    'https://api.exchangerate.host/latest?base=USD'
+    'https://open.er-api.com/v6/latest/USD'
   ];
 
-  for (const url of urls) {
+  for (const api of apis) {
     try {
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) continue;
-      
-      const json = await res.json() as Record<string, unknown>;
-      const rates = (json.rates as Record<string, number>) || {};
-      
-      if (Object.keys(rates).length > 10) {
-        return { USD: 1, ...rates };
+      const res = await fetch(api);
+      if (res.ok) {
+        const data = await res.json();
+        const r = data.rates || {};
+        if (Object.keys(r).length > 10) {
+          return Object.assign({ USD: 1 }, r);
+        }
       }
     } catch {
-      continue;
+      null;
     }
   }
 
-  return getDefaultRates();
+  return getDefaults();
 }
 
-function getDefaultRates(): Record<string, number> {
+function getDefaults() {
   return {
-    USD: 1.0,
+    USD: 1,
     EUR: 0.92,
     GBP: 0.79,
     JPY: 149.5,
@@ -75,6 +52,7 @@ function getDefaultRates(): Record<string, number> {
     CHF: 0.88,
     CNY: 7.24,
     INR: 83.12,
+    PKR: 96,
     MXN: 17.05,
     SGD: 1.35,
     HKD: 7.81,
@@ -84,7 +62,6 @@ function getDefaultRates(): Record<string, number> {
     DKK: 6.86,
     BRL: 4.97,
     ZAR: 18.65,
-    KRW: 1319.5,
-    PKR: 96.0,
+    KRW: 1319.5
   };
 }
