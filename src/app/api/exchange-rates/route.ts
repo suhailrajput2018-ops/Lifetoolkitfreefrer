@@ -16,60 +16,47 @@ export async function GET() {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
+          'Cache-Control': 'no-store, no-cache, must-revalidate'
         }
       }
     );
-  } catch (error: any) {
-    console.error('Exchange API Error:', error);
+  } catch (err) {
+    console.error('Error:', err);
     
     return new Response(
       JSON.stringify({
         success: true,
         rates: getDefaultRates(),
         lastUpdated: new Date().toISOString(),
-        source: 'default',
-        warning: 'Using default rates'
+        source: 'default'
       }),
       {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store'
-        }
+        headers: { 'Content-Type': 'application/json' }
       }
     );
   }
 }
 
 async function fetchLiveRates(): Promise<Record<string, number>> {
-  const sources = [
+  const urls = [
     'https://api.exchangerate-api.com/v4/latest/USD',
     'https://open.er-api.com/v6/latest/USD',
     'https://api.exchangerate.host/latest?base=USD'
   ];
 
-  for (const url of sources) {
+  for (const url of urls) {
     try {
-      const res = await fetch(url, {
-        method: 'GET',
-        cache: 'no-store'
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const rates = data.rates || {};
-        
-        if (Object.keys(rates).length > 10) {
-          return {
-            USD: 1,
-            ...rates
-          };
-        }
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) continue;
+      
+      const json = await res.json() as Record<string, unknown>;
+      const rates = (json.rates as Record<string, number>) || {};
+      
+      if (Object.keys(rates).length > 10) {
+        return { USD: 1, ...rates };
       }
-    } catch (e) {
+    } catch {
       continue;
     }
   }
