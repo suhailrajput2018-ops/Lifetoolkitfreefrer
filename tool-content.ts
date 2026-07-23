@@ -514,28 +514,45 @@ export function getToolContent(toolId: string): ToolContent {
     },
     'currency-converter': {
       title: 'Currency Converter',
-      description: 'Convert between world currencies with real-time exchange rates.',
+      description: 'Convert between world currencies with live exchange rates updated every 5 minutes.',
       howToUse: [
-        'Enter amount',
-        'Select source currency',
-        'Select target currency',
-        'View converted amount',
+        'Enter the amount you want to convert',
+        'Select the source currency (e.g., USD)',
+        'Select the target currency (e.g., EUR)',
+        'Click "Convert Now" to see the live conversion',
+        'Rates are automatically refreshed every 5 minutes',
       ],
       faqs: [
         {
           question: 'How often are rates updated?',
-          answer: 'Exchange rates are updated daily from reliable financial sources.',
+          answer: 'Exchange rates are fetched in real-time and cached for 5 minutes to ensure accuracy while maintaining performance.',
+        },
+        {
+          question: 'Which currencies are supported?',
+          answer: 'We support 30+ major world currencies including USD, EUR, GBP, JPY, CAD, AUD, CHF, CNY, INR, and more.',
+        },
+        {
+          question: 'Are these rates accurate for trading?',
+          answer: 'Our rates are mid-market rates from reliable financial APIs. For actual trading, check with your bank or exchange service as they may add their own margins.',
+        },
+        {
+          question: 'Why do rates change?',
+          answer: 'Currency exchange rates fluctuate constantly based on global market conditions, economic data, interest rates, and geopolitical events.',
         },
       ],
       examples: [
-        '100 USD = 85 EUR',
-        '1000 JPY = 6.50 USD',
+        '100 USD = 92 EUR (live rate)',
+        '1000 JPY = 6.47 USD (live rate)',
+        '500 GBP = 635 USD (live rate)',
+        '100 CAD = 73.50 USD (live rate)',
       ],
       commonMistakes: [
-        'Not checking current rates before transactions',
+        'Not checking current rates before large transactions',
         'Confusing buying and selling rates',
+        'Forgetting that banks add their own margins to exchange rates',
+        'Not considering transaction fees',
       ],
-      relatedTools: ['unit-converter', 'crypto-converter', 'inflation-calculator'],
+      relatedTools: ['unit-converter', 'crypto-converter', 'inflation-calculator', 'tip-calculator'],
     },
     'emi-calculator': {
       title: 'EMI/Loan Calculator',

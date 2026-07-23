@@ -1,7 +1,7 @@
 // Export all tool components from a single file for efficiency
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { calculateBMI, calculateBMR, calculateTDEE, calculateEMI, calculateMortgage, calculateTip, calculateFuelCost, calculatePercentage, calculatePercentageValue, calculatePercentageChange, generatePassword, checkPasswordStrength, generateUUID, generateRandomNumber, countText, convertCase, removeDuplicateLines, formatJSON, base64Encode, base64Decode, urlEncode, urlDecode, hexToRgb, rgbToHex, rgbToHsl, hslToRgb, formatCurrency, formatNumber } from '@/lib/utils';
 import QRCode from 'qrcode';
 
@@ -1311,43 +1311,131 @@ export function UnitConverterTool() {
   );
 }
 
-// Currency Converter (with placeholder rates)
+// Currency Converter (with real-time rates)
 export function CurrencyConverterTool() {
   const [amount, setAmount] = useState('1');
   const [fromCurrency, setFromCurrency] = useState('USD');
   const [toCurrency, setToCurrency] = useState('EUR');
   const [result, setResult] = useState('');
+  const [rates, setRates] = useState<Record<string, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState('');
+  const [error, setError] = useState('');
 
-  // Placeholder rates (in real app, fetch from API)
-  const rates: any = {
-    USD: 1, EUR: 0.85, GBP: 0.73, JPY: 110, CAD: 1.25, AUD: 1.35, CHF: 0.92, CNY: 6.45, INR: 74.5,
-  };
+  // Fetch exchange rates on mount
+  const fetchRates = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const response = await fetch('/api/exchange-rates');
+      const data = await response.json();
+      
+      if (data.success) {
+        setRates(data.rates);
+        setLastUpdated(new Date(data.lastUpdated).toLocaleString());
+        if (data.warning) {
+          setError(data.warning);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch rates:', err);
+      setError('Failed to fetch latest rates. Using cached rates.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRates();
+    // Auto-refresh rates every 5 minutes
+    const interval = setInterval(fetchRates, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchRates]);
 
   const handleConvert = () => {
     const amt = parseFloat(amount) || 0;
+    if (!rates[fromCurrency] || !rates[toCurrency]) {
+      setResult('Rate unavailable');
+      return;
+    }
     const converted = amt * (rates[toCurrency] / rates[fromCurrency]);
     setResult(converted.toFixed(2));
   };
 
-  const currencies = Object.keys(rates).map(c => ({ value: c, label: c }));
+  const currencies = Object.keys(rates).length > 0 
+    ? Object.keys(rates).map(c => ({ value: c, label: c }))
+    : [
+        { value: 'USD', label: 'USD' },
+        { value: 'EUR', label: 'EUR' },
+        { value: 'GBP', label: 'GBP' },
+        { value: 'JPY', label: 'JPY' },
+        { value: 'CAD', label: 'CAD' },
+        { value: 'AUD', label: 'AUD' },
+        { value: 'CHF', label: 'CHF' },
+        { value: 'CNY', label: 'CNY' },
+        { value: 'INR', label: 'INR' },
+      ];
 
   return (
     <div className="space-y-4">
-      <ToolInput label="Amount" value={amount} onChange={setAmount} type="number" />
-      <div className="grid grid-cols-2 gap-4">
-        <ToolSelect label="From" value={fromCurrency} onChange={setFromCurrency} options={currencies} />
-        <ToolSelect label="To" value={toCurrency} onChange={setToCurrency} options={currencies} />
-      </div>
-      <ToolButton onClick={handleConvert}>Convert</ToolButton>
-      {result && (
-        <ResultCard title="Conversion Result">
-          <div className="text-center">
-            <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-              {amount} {fromCurrency} = {result} {toCurrency}
+      {loading ? (
+        <div className="flex items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-slate-600 dark:text-slate-400">Fetching latest rates...</span>
+        </div>
+      ) : (
+        <>
+          {error && (
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-yellow-700 dark:text-yellow-400 text-sm">
+              ⚠️ {error}
             </div>
-            <div className="text-xs text-slate-500 mt-2">Rates are approximate</div>
+          )}
+          
+          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <span>Last updated: {lastUpdated || 'Loading...'}</span>
+            <button 
+              onClick={fetchRates}
+              className="text-blue-600 dark:text-blue-400 hover:underline flex items-center"
+              title="Refresh rates"
+            >
+              <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
           </div>
-        </ResultCard>
+
+          <ToolInput label="Amount" value={amount} onChange={setAmount} type="number" placeholder="1" />
+          <div className="grid grid-cols-2 gap-4">
+            <ToolSelect label="From" value={fromCurrency} onChange={setFromCurrency} options={currencies} />
+            <ToolSelect label="To" value={toCurrency} onChange={setToCurrency} options={currencies} />
+          </div>
+          <ToolButton onClick={handleConvert}>Convert Now</ToolButton>
+          
+          {result && (
+            <ResultCard title="Live Conversion Result" color="green">
+              <div className="text-center">
+                <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">
+                  {result} {toCurrency}
+                </div>
+                <div className="text-lg text-slate-600 dark:text-slate-400">
+                  {amount} {fromCurrency} = {result} {toCurrency}
+                </div>
+                <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                  <div className="text-xs text-slate-500">
+                    1 {fromCurrency} = {(rates[toCurrency] / rates[fromCurrency]).toFixed(4)} {toCurrency}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    1 {toCurrency} = {(rates[fromCurrency] / rates[toCurrency]).toFixed(4)} {fromCurrency}
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-green-600 dark:text-green-400">
+                  ✓ Live market rates
+                </div>
+              </div>
+            </ResultCard>
+          )}
+        </>
       )}
     </div>
   );
